@@ -1,0 +1,56 @@
+volumes:
+  config_volume:
+
+services:
+  postgres:
+    image: postgres:alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}" ]
+      interval: 15s
+      retries: 5
+      start_period: 10s
+      timeout: 20s
+    container_name: postgres
+    ports: [ 5432:5432 ]
+
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: postgres:5432
+      GITEA__database__NAME: ${POSTGRES_DATABASE}
+      GITEA__database__USER: ${POSTGRES_USERNAME}
+      GITEA__database__PASSWD: ${POSTGRES_PASSWORD}
+      GITEA__service__REQUIRE_SIGNIN_VIEW: false
+      GITEA__security__INSTALL_LOCK: true
+    command:
+      - bash
+      - -c
+      - |
+        gitea migrate
+        gitea admin user create \
+          --username ${GITEA_USERNAME} --password ${GITEA_PASSWORD} --email ${GITEA_EMAIL} \
+          --must-change-password=false --admin
+        gitea admin user generate-access-token \
+          --username ${GITEA_USERNAME} --token-name ${GITEA_USERNAME} --scopes all \
+          | grep -oE '\b[0-9a-f]{40}\b' > /tmp/gitea_token.txt
+        exec /usr/local/bin/docker-entrypoint.sh
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --fail http://localhost:3000/api/healthz" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - config_volume:/tmp
+    container_name: gitea
+    ports: [ 3000:3000 ]
