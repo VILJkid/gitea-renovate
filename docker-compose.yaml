@@ -54,3 +54,18 @@ services:
       - config_volume:/tmp
     container_name: gitea
     ports: [ 3000:3000 ]
+
+  runner:
+    image: docker.io/gitea/act_runner:${GITEA_RUNNER_VERSION}
+    depends_on:
+      gitea:
+        condition: service_healthy
+    environment:
+      GITEA_INSTANCE_URL: "${GITEA_INSTANCE_URL}"
+      GITEA_RUNNER_REGISTRATION_TOKEN: "${GITEA_RUNNER_REGISTRATION_TOKEN}"
+      GITEA_RUNNER_NAME: "${GITEA_RUNNER_NAME}"
+      GITEA_RUNNER_LABELS: "${GITEA_RUNNER_LABELS}"
+    container_name: runner
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
